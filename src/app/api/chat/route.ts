@@ -14,6 +14,54 @@ interface ChatMessage {
   content: string;
 }
 
+// Map language codes to Piper voice models (best available from /opt/piper/voices/)
+const voiceMap: Record<string, { voice: string; lang: string }> = {
+  ar: { voice: 'ar_JO-kareem-medium', lang: 'Arabic' },
+  da: { voice: 'da_DK-talesyntese-medium', lang: 'Danish' },
+  de: { voice: 'de_DE-thorsten-medium', lang: 'German' },
+  el: { voice: 'el_GR-rapunzelina-low', lang: 'Greek' },
+  en: { voice: 'en_US-john-medium', lang: 'English' },
+  es: { voice: 'es_ES-davefx-medium', lang: 'Spanish' },
+  fi: { voice: 'fi_FI-harri-medium', lang: 'Finnish' },
+  fr: { voice: 'fr_FR-siwis-medium', lang: 'French' },
+  he: { voice: 'he-custom-medium-optimized', lang: 'Hebrew' },
+  hi: { voice: 'hi_IN-pratham-medium', lang: 'Hindi' },
+  id: { voice: 'id_ID-john-medium-optimized', lang: 'Indonesian' },
+  it: { voice: 'it_IT-paola-medium', lang: 'Italian' },
+  ja: { voice: 'ja-male-medium-optimized', lang: 'Japanese' },
+  ko: { voice: 'ko-male-medium-optimized', lang: 'Korean' },
+  ms: { voice: 'ms', lang: 'Malay' },
+  nl: { voice: 'nl_BE-nathalie-medium', lang: 'Dutch' },
+  no: { voice: 'no_NO-talesyntese-medium', lang: 'Norwegian' },
+  pl: { voice: 'pl_PL-darkman-medium', lang: 'Polish' },
+  pt: { voice: 'pt_BR-cadu-medium', lang: 'Portuguese' },
+  ru: { voice: 'ru_RU-denis-medium', lang: 'Russian' },
+  sv: { voice: 'sv_SE-lisa-medium', lang: 'Swedish' },
+  sw: { voice: 'sw_CD-lanfrica-medium', lang: 'Swahili' },
+  tr: { voice: 'tr_TR-dfki-medium', lang: 'Turkish' },
+};
+
+function detectLanguage(acceptLang: string | null): { voice: string; lang: string; code: string } {
+  if (!acceptLang) return { ...voiceMap.en, code: 'en' };
+
+  // Parse Accept-Language: "id-ID,id;q=0.9,en-US;q=0.8" → ["id", "en"]
+  const langs = acceptLang
+    .split(',')
+    .map(part => {
+      const [tag, q] = part.trim().split(';q=');
+      return { code: tag.split('-')[0].toLowerCase(), q: q ? parseFloat(q) : 1.0 };
+    })
+    .sort((a, b) => b.q - a.q);
+
+  for (const { code } of langs) {
+    if (voiceMap[code]) {
+      return { ...voiceMap[code], code };
+    }
+  }
+
+  return { ...voiceMap.en, code: 'en' };
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { message, session_id, tts } = await request.json();
@@ -21,10 +69,20 @@ export async function POST(request: NextRequest) {
 
     const sid = session_id || crypto.randomUUID();
 
+    // Detect visitor language from Accept-Language header
+    const acceptLang = request.headers.get('accept-language');
+    const detected = detectLanguage(acceptLang);
+
     const agent = db.prepare('SELECT system_prompt, model, temperature FROM agents WHERE is_active = 1 ORDER BY id ASC LIMIT 1').get() as Agent | undefined;
-    const systemPrompt = agent?.system_prompt || 'You are a helpful assistant for Wendy Rostandy\'s portfolio website.';
+    const basePrompt = agent?.system_prompt || 'You are a helpful assistant for Wendy Rostandy\'s portfolio website.';
     const model = agent?.model || 'gemini-2.5-flash';
     const temperature = agent?.temperature ?? 0.7;
+
+    // Append language instruction to system prompt
+    const langInstruction = detected.code === 'en'
+      ? ''
+      : `\n\nIMPORTANT: The visitor's browser language is ${detected.lang} (${detected.code}). Respond in ${detected.lang}. If they write in English, still respond in ${detected.lang} unless they explicitly ask for English.`;
+    const systemPrompt = basePrompt + langInstruction;
 
     db.prepare('INSERT INTO chat_messages (session_id, role, content) VALUES (?, ?, ?)').run(sid, 'user', message);
 
@@ -66,19 +124,23 @@ export async function POST(request: NextRequest) {
 
     db.prepare('INSERT INTO chat_messages (session_id, role, content) VALUES (?, ?, ?)').run(sid, 'assistant', reply);
 
-    // Generate TTS if requested
+    // Generate TTS if requested — use detected language voice
     let audioUrl = null;
     if (tts) {
       try {
         const audioFile = `tts-${Date.now()}.wav`;
         const audioPath = `/tmp/${audioFile}`;
-        const voiceModel = '/opt/piper/voices/en_US-john-medium.onnx';
+        const voiceModel = `/opt/piper/voices/${detected.voice}.onnx`;
 
-        // Strip markdown and limit to ~500 chars for reasonable audio length
+        // Verify voice file exists, fallback to English
+        const actualVoice = fs.existsSync(voiceModel)
+          ? voiceModel
+          : '/opt/piper/voices/en_US-john-medium.onnx';
+
         const cleanText = reply.replace(/[#*_`\[\]()>]/g, '').slice(0, 500);
 
         execFileSync('/usr/local/bin/piper', [
-          '--model', voiceModel,
+          '--model', actualVoice,
           '--output_file', audioPath,
         ], {
           input: cleanText,
@@ -94,7 +156,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ reply, session_id: sid, audioUrl });
+    return NextResponse.json({
+      reply,
+      session_id: sid,
+      audioUrl,
+      language: { code: detected.code, name: detected.lang },
+    });
   } catch (err) {
     console.error('Chat error:', err);
     return NextResponse.json({ error: 'Chat failed' }, { status: 500 });

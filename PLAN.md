@@ -23,7 +23,7 @@
 - [x] Step 16: Install Piper TTS binary (/opt/piper) + John voice model (/opt/piper/voices)
 - [x] Step 17: TTS API endpoint (/api/chat with piper, /api/chat/audio serving WAV)
 - [x] Step 18: Audio playback in chat UI (auto-play + replay button)
-- [ ] Step 19: Admin toggle for TTS voice selection
+- [x] Step 19: Auto language detection from Accept-Language header (23 languages, auto TTS voice selection)
 
 ## Phase 4: Enhanced Admin Features
 - [ ] Step 20: Plan execution queue — background agent integration
@@ -41,7 +41,7 @@
 - [ ] Step 30: Performance optimization (lazy loading, image optimization)
 
 ## Status
-- **Current Phase**: 3 nearly complete (Step 19 remaining) — Phase 4 next
+- **Current Phase**: 3 COMPLETE — Phase 4 next
 - **Live URL**: https://rostandy.com
 - **GitHub**: https://github.com/jwendyr/rostandy
 - **Port**: 3015
