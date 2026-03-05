@@ -18,6 +18,10 @@
   ::-webkit-scrollbar-thumb {
     @apply bg-border rounded-full;
   }
+  /* Prevent horizontal overflow on narrow screens */
+  html, body {
+    overflow-x: hidden;
+  }
 }
 
 @layer components {
@@ -42,4 +46,9 @@
   .textarea-field {
     @apply w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-dim focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/20 transition-colors resize-y min-h-[80px];
   }
+}
+
+/* RTL adjustments */
+[dir="rtl"] .gradient-text {
+  @apply bg-gradient-to-l;
 }

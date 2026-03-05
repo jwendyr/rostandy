@@ -33,15 +33,16 @@
 - [ ] Step 24: Portfolio auto-image generation (placeholder covers)
 
 ## Phase 5: Public Site Polish
-- [ ] Step 25: Animated scroll reveals on portfolio page
-- [ ] Step 26: SEO metadata, Open Graph tags, structured data
-- [ ] Step 27: Mobile responsive refinements
-- [ ] Step 28: Favicon, touch icons, manifest.json
-- [ ] Step 29: Analytics integration
-- [ ] Step 30: Performance optimization (lazy loading, image optimization)
+- [x] Step 25: Full i18n — 15-language pre-translated UI (en, id, ja, ko, zh, fr, de, es, pt, ar, hi, ru, tr, it, nl)
+- [x] Step 26: Mobile responsive — Fold3 cover (280px), hamburger nav, admin sidebar collapse, RTL Arabic
+- [ ] Step 27: SEO metadata, Open Graph tags, structured data
+- [ ] Step 28: Animated scroll reveals on portfolio page
+- [ ] Step 29: Favicon, touch icons, manifest.json
+- [ ] Step 30: Analytics integration
+- [ ] Step 31: Performance optimization (lazy loading, image optimization)
 
 ## Status
-- **Current Phase**: 3 COMPLETE — Phase 4 next
+- **Current Phase**: 5 in progress (Steps 25-26 done) — Phase 4 & 5 remaining
 - **Live URL**: https://rostandy.com
 - **GitHub**: https://github.com/jwendyr/rostandy
 - **Port**: 3015

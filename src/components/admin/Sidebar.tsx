@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -23,20 +24,16 @@ function NavIcon({ d }: { d: string }) {
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const [open, setOpen] = useState(false);
 
-  return (
-    <aside className="w-60 min-h-screen border-r border-border bg-bg-card p-4 space-y-1 flex flex-col">
-      <div className="mb-6 px-3">
-        <Link href="/" className="text-lg font-bold gradient-text">Rostandy</Link>
-        <p className="text-text-dim text-xs mt-1">Admin Panel</p>
-      </div>
-
+  const navContent = (
+    <>
       <div className="space-y-0.5 flex-1">
         <p className="text-text-dim text-[10px] font-bold uppercase tracking-wider px-3 mb-2">Management</p>
         {navItems.filter(i => i.group === 'manage').map((item) => {
           const isActive = pathname === item.href || (item.href !== '/admin' && pathname.startsWith(item.href));
           return (
-            <Link key={item.href} href={item.href}
+            <Link key={item.href} href={item.href} onClick={() => setOpen(false)}
               className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                 isActive ? 'bg-accent/10 text-accent border border-accent/20' : 'text-text-muted hover:text-text-primary hover:bg-bg-card-hover'
               }`}>
@@ -51,7 +48,7 @@ export default function Sidebar() {
         {navItems.filter(i => i.group === 'system').map((item) => {
           const isActive = pathname === item.href || (item.href !== '/admin' && pathname.startsWith(item.href));
           return (
-            <Link key={item.href} href={item.href}
+            <Link key={item.href} href={item.href} onClick={() => setOpen(false)}
               className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                 isActive ? 'bg-accent/10 text-accent border border-accent/20' : 'text-text-muted hover:text-text-primary hover:bg-bg-card-hover'
               }`}>
@@ -72,6 +69,42 @@ export default function Sidebar() {
           <span>Logout</span>
         </button>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Mobile top bar */}
+      <div className="md:hidden fixed top-0 inset-x-0 z-50 bg-bg-card border-b border-border px-4 h-12 flex items-center justify-between">
+        <Link href="/" className="text-base font-bold gradient-text">Rostandy</Link>
+        <button onClick={() => setOpen(!open)} className="p-1.5 text-text-muted hover:text-text-primary" aria-label="Menu">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+            {open
+              ? <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              : <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+            }
+          </svg>
+        </button>
+      </div>
+
+      {/* Mobile slide-out */}
+      {open && (
+        <>
+          <div className="md:hidden fixed inset-0 z-40 bg-black/50" onClick={() => setOpen(false)} />
+          <aside className="md:hidden fixed top-12 left-0 bottom-0 z-50 w-60 bg-bg-card border-r border-border p-4 flex flex-col overflow-y-auto">
+            {navContent}
+          </aside>
+        </>
+      )}
+
+      {/* Desktop sidebar */}
+      <aside className="hidden md:flex w-60 min-h-screen border-r border-border bg-bg-card p-4 flex-col">
+        <div className="mb-6 px-3">
+          <Link href="/" className="text-lg font-bold gradient-text">Rostandy</Link>
+          <p className="text-text-dim text-xs mt-1">Admin Panel</p>
+        </div>
+        {navContent}
+      </aside>
+    </>
   );
 }
