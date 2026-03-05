@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-bg text-text-primary;
+  }
+  ::selection {
+    @apply bg-accent/30;
+  }
+  ::-webkit-scrollbar {
+    @apply w-1.5;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-bg-card border border-border rounded-xl backdrop-blur-sm;
+  }
+  .gradient-text {
+    @apply bg-gradient-to-r from-accent via-accent-2 to-accent-3 bg-clip-text text-transparent;
+  }
+  .btn-primary {
+    @apply px-4 py-2 bg-accent text-white rounded-lg font-medium text-sm hover:bg-accent/90 transition-colors disabled:opacity-50;
+  }
+  .btn-secondary {
+    @apply px-4 py-2 bg-bg-card border border-border text-text-muted rounded-lg font-medium text-sm hover:text-text-primary hover:border-text-dim transition-colors;
+  }
+  .btn-danger {
+    @apply px-4 py-2 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg font-medium text-sm hover:bg-red-500/20 transition-colors;
+  }
+  .input-field {
+    @apply w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-dim focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/20 transition-colors;
+  }
+  .textarea-field {
+    @apply w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-dim focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/20 transition-colors resize-y min-h-[80px];
+  }
+}
