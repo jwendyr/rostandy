@@ -90,6 +90,7 @@ db.exec(`
     system_prompt TEXT DEFAULT '',
     model TEXT DEFAULT 'gemini-2.5-flash',
     temperature REAL DEFAULT 0.7,
+    tts_voice TEXT DEFAULT 'en_US-john-medium',
     is_active INTEGER DEFAULT 1,
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now'))
