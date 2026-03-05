@@ -17,12 +17,12 @@
 - [x] Step 12: Cloudflare DNS setup (A records proxied, zone 42c353f4b28ec5fa6eb4b2299bd822cd)
 - [x] Step 13: SSL certificate (self-signed 10yr, CF Full mode)
 - [x] Step 14: Port registry updated (domain, path, nginx_conf fields)
-- [ ] Step 15: Git init + push to GitHub (jwendyr/rostandy)
+- [x] Step 15: Git init + push to GitHub (jwendyr/rostandy)
 
 ## Phase 3: Piper TTS Integration
-- [ ] Step 16: Install Piper TTS binary + John voice model
-- [ ] Step 17: TTS API endpoint for audio generation
-- [ ] Step 18: Audio playback in chat UI
+- [x] Step 16: Install Piper TTS binary (/opt/piper) + John voice model (/opt/piper/voices)
+- [x] Step 17: TTS API endpoint (/api/chat with piper, /api/chat/audio serving WAV)
+- [x] Step 18: Audio playback in chat UI (auto-play + replay button)
 - [ ] Step 19: Admin toggle for TTS voice selection
 
 ## Phase 4: Enhanced Admin Features
@@ -41,10 +41,12 @@
 - [ ] Step 30: Performance optimization (lazy loading, image optimization)
 
 ## Status
-- **Current Phase**: 2 nearly complete (Step 15 remaining)
+- **Current Phase**: 3 nearly complete (Step 19 remaining) — Phase 4 next
 - **Live URL**: https://rostandy.com
+- **GitHub**: https://github.com/jwendyr/rostandy
 - **Port**: 3015
 - **PM2**: rostandy (online)
 - **CF Zone**: 42c353f4b28ec5fa6eb4b2299bd822cd
 - **Wallet**: 9ixfhJavkbZKGHUAHYYKmD6bG8av4YgTdzwq7NU1MEfA (Phantom devnet)
+- **Piper TTS**: /opt/piper/piper, John voice at /opt/piper/voices/en_US-john-medium.onnx
 - **Action needed**: Set Cloudflare SSL mode to "Full"

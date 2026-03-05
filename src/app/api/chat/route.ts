@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import db from '@/lib/db';
+import { execFileSync } from 'child_process';
+import fs from 'fs';
 
 interface Agent {
   system_prompt: string;
@@ -19,32 +21,27 @@ export async function POST(request: NextRequest) {
 
     const sid = session_id || crypto.randomUUID();
 
-    // Get active agent config
     const agent = db.prepare('SELECT system_prompt, model, temperature FROM agents WHERE is_active = 1 ORDER BY id ASC LIMIT 1').get() as Agent | undefined;
     const systemPrompt = agent?.system_prompt || 'You are a helpful assistant for Wendy Rostandy\'s portfolio website.';
     const model = agent?.model || 'gemini-2.5-flash';
     const temperature = agent?.temperature ?? 0.7;
 
-    // Save user message
     db.prepare('INSERT INTO chat_messages (session_id, role, content) VALUES (?, ?, ?)').run(sid, 'user', message);
 
-    // Get recent history
     const history = db.prepare('SELECT role, content FROM chat_messages WHERE session_id = ? ORDER BY id DESC LIMIT 20').all(sid) as ChatMessage[];
     history.reverse();
 
-    // Build Gemini API request
     const geminiApiKey = process.env.GEMINI_API_KEY;
     if (!geminiApiKey) {
       return NextResponse.json({ error: 'Gemini API key not configured' }, { status: 500 });
     }
 
-    // Map model name to Gemini API model ID
     const modelMap: Record<string, string> = {
-      'gemini-2.5-flash': 'gemini-2.5-flash-preview-05-20',
-      'gemini-2.5-pro': 'gemini-2.5-pro-preview-05-06',
+      'gemini-2.5-flash': 'gemini-2.5-flash',
+      'gemini-2.5-pro': 'gemini-2.5-pro',
       'gemini-2.0-flash': 'gemini-2.0-flash',
     };
-    const geminiModel = modelMap[model] || 'gemini-2.5-flash-preview-05-20';
+    const geminiModel = modelMap[model] || 'gemini-2.5-flash';
 
     const contents = history.map(m => ({
       role: m.role === 'user' ? 'user' : 'model',
@@ -67,24 +64,33 @@ export async function POST(request: NextRequest) {
     const geminiData = await geminiRes.json();
     const reply = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || 'Sorry, I could not generate a response.';
 
-    // Save assistant message
     db.prepare('INSERT INTO chat_messages (session_id, role, content) VALUES (?, ?, ?)').run(sid, 'assistant', reply);
 
     // Generate TTS if requested
     let audioUrl = null;
     if (tts) {
       try {
-        const { execFileSync } = await import('child_process');
-        const audioPath = `/tmp/tts-${sid}-${Date.now()}.wav`;
-        const voice = process.env.PIPER_VOICE || 'en_US-john-medium';
-        // Try piper TTS
-        execFileSync('piper', ['--model', voice, '--output_file', audioPath], {
-          input: reply.slice(0, 500),
-          timeout: 10000,
+        const audioFile = `tts-${Date.now()}.wav`;
+        const audioPath = `/tmp/${audioFile}`;
+        const voiceModel = '/opt/piper/voices/en_US-john-medium.onnx';
+
+        // Strip markdown and limit to ~500 chars for reasonable audio length
+        const cleanText = reply.replace(/[#*_`\[\]()>]/g, '').slice(0, 500);
+
+        execFileSync('/usr/local/bin/piper', [
+          '--model', voiceModel,
+          '--output_file', audioPath,
+        ], {
+          input: cleanText,
+          timeout: 15000,
+          env: { ...process.env, LD_LIBRARY_PATH: '/opt/piper/piper' },
         });
-        audioUrl = `/api/chat/audio?file=${encodeURIComponent(audioPath)}`;
-      } catch {
-        // TTS not available, skip silently
+
+        if (fs.existsSync(audioPath)) {
+          audioUrl = `/api/chat/audio?f=${audioFile}`;
+        }
+      } catch (e) {
+        console.error('TTS error:', e);
       }
     }
 
