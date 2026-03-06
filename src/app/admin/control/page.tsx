@@ -1,230 +1,135 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-
-interface LogEntry {
-  id: number;
-  command: string;
-  response: string;
-  model: string;
-  shell_commands: string;
-  shell_outputs: string;
-  created_at: string;
-}
-
-interface MemoryEntry {
-  key: string;
-  value: string;
-  updated_at: string;
-}
+import { useEffect, useRef } from 'react';
 
 export default function ControlPage() {
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [memory, setMemory] = useState<MemoryEntry[]>([]);
-  const [showMemory, setShowMemory] = useState(false);
-  const [activeLog, setActiveLog] = useState<number | null>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const load = useCallback(async () => {
-    const res = await fetch('/api/control');
-    const data = await res.json();
-    setLogs(data.logs?.reverse() || []);
-    setMemory(data.memory || []);
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
+  const termRef = useRef<HTMLDivElement>(null);
+  const xtermRef = useRef<unknown>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [logs, loading]);
+    if (!termRef.current || xtermRef.current) return;
 
-  async function execute() {
-    const cmd = input.trim();
-    if (!cmd || loading) return;
-    setInput('');
-    setLoading(true);
+    let ws: WebSocket | null = null;
+    let terminal: unknown = null;
+    let fitAddon: unknown = null;
 
-    try {
-      const res = await fetch('/api/control', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command: cmd }),
+    async function init() {
+      const { Terminal } = await import('@xterm/xterm');
+      const { FitAddon } = await import('@xterm/addon-fit');
+      const { WebLinksAddon } = await import('@xterm/addon-web-links');
+      // @ts-expect-error CSS import
+      await import('@xterm/xterm/css/xterm.css');
+
+      const term = new Terminal({
+        cursorBlink: true,
+        fontSize: 13,
+        fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', Menlo, monospace",
+        theme: {
+          background: '#0a0a0f',
+          foreground: '#e0e0e8',
+          cursor: '#7c5bf0',
+          selectionBackground: '#7c5bf044',
+          black: '#1a1a2e',
+          red: '#ff6b6b',
+          green: '#51cf66',
+          yellow: '#ffd43b',
+          blue: '#7c5bf0',
+          magenta: '#cc5de8',
+          cyan: '#22b8cf',
+          white: '#e0e0e8',
+          brightBlack: '#4a4a5e',
+          brightRed: '#ff8787',
+          brightGreen: '#69db7c',
+          brightYellow: '#ffe066',
+          brightBlue: '#9775fa',
+          brightMagenta: '#e599f7',
+          brightCyan: '#3bc9db',
+          brightWhite: '#f8f9fa',
+        },
+        allowProposedApi: true,
       });
-      await res.json();
-      await load();
-    } catch {
-      // reload logs anyway
-      await load();
-    }
 
-    setLoading(false);
-    inputRef.current?.focus();
-  }
+      const fit = new FitAddon();
+      term.loadAddon(fit);
+      term.loadAddon(new WebLinksAddon());
 
-  async function clearLogs() {
-    if (!confirm('Clear all control logs?')) return;
-    await fetch('/api/control', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'clear-logs' }),
-    });
-    setLogs([]);
-  }
+      term.open(termRef.current!);
+      fit.fit();
 
-  async function deleteMemory(key: string) {
-    await fetch('/api/control', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'delete-memory', key }),
-    });
-    load();
-  }
+      terminal = term;
+      fitAddon = fit;
+      xtermRef.current = term;
 
-  function parseShellData(log: LogEntry): { commands: string[]; outputs: string[] } {
-    try {
-      return {
-        commands: JSON.parse(log.shell_commands || '[]'),
-        outputs: JSON.parse(log.shell_outputs || '[]'),
+      // Connect WebSocket
+      const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${proto}//${window.location.host}/ws/terminal`);
+
+      ws.onopen = () => {
+        // Send initial size
+        ws!.send(`\x01RESIZE:${term.cols},${term.rows}`);
       };
-    } catch {
-      return { commands: [], outputs: [] };
+
+      ws.onmessage = (e) => {
+        term.write(e.data);
+      };
+
+      ws.onclose = () => {
+        term.write('\r\n\x1b[31m[Connection closed. Refresh to reconnect.]\x1b[0m\r\n');
+      };
+
+      ws.onerror = () => {
+        term.write('\r\n\x1b[31m[WebSocket error. Check terminal server.]\x1b[0m\r\n');
+      };
+
+      term.onData((data: string) => {
+        if (ws?.readyState === WebSocket.OPEN) {
+          ws.send(data);
+        }
+      });
+
+      term.onResize(({ cols, rows }: { cols: number; rows: number }) => {
+        if (ws?.readyState === WebSocket.OPEN) {
+          ws.send(`\x01RESIZE:${cols},${rows}`);
+        }
+      });
+
+      const onResize = () => fit.fit();
+      window.addEventListener('resize', onResize);
+
+      return () => {
+        window.removeEventListener('resize', onResize);
+      };
     }
-  }
+
+    const cleanup = init();
+
+    return () => {
+      cleanup.then((fn) => fn?.());
+      ws?.close();
+      if (terminal && typeof (terminal as { dispose: () => void }).dispose === 'function') {
+        (terminal as { dispose: () => void }).dispose();
+      }
+      xtermRef.current = null;
+    };
+  }, []);
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] md:h-[calc(100vh-2rem)]">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4 shrink-0">
+      <div className="flex items-center justify-between mb-3 shrink-0">
         <div>
-          <h1 className="text-2xl font-bold text-text-primary">Control</h1>
-          <p className="text-text-muted text-sm mt-0.5">AI agent with shell access &middot; Claude Opus 4.6</p>
+          <h1 className="text-2xl font-bold text-text-primary">Terminal</h1>
+          <p className="text-text-muted text-sm mt-0.5">Full server shell access</p>
         </div>
-        <div className="flex gap-2">
-          <button onClick={() => setShowMemory(!showMemory)} className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${showMemory ? 'border-accent/40 text-accent bg-accent/5' : 'border-border text-text-muted hover:text-text-primary'}`}>
-            Memory ({memory.length})
-          </button>
-          <button onClick={clearLogs} className="text-xs px-3 py-1.5 rounded-lg border border-border text-text-muted hover:text-red-400 hover:border-red-400/30 transition-colors">
-            Clear
-          </button>
+        <div className="flex items-center gap-2 text-xs text-text-dim">
+          <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+          <span>bash</span>
         </div>
       </div>
-
-      {/* Memory panel */}
-      {showMemory && memory.length > 0 && (
-        <div className="glass-card p-4 mb-4 shrink-0 max-h-48 overflow-y-auto">
-          <div className="space-y-1.5">
-            {memory.map(m => (
-              <div key={m.key} className="flex items-start justify-between gap-2 text-xs">
-                <div className="min-w-0">
-                  <span className="font-mono text-accent">{m.key}</span>
-                  <span className="text-text-dim mx-1.5">=</span>
-                  <span className="text-text-muted">{m.value}</span>
-                </div>
-                <button onClick={() => deleteMemory(m.key)} className="text-red-400/50 hover:text-red-400 shrink-0">&times;</button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Log area */}
-      <div className="flex-1 overflow-y-auto glass-card p-4 font-mono text-sm space-y-4 mb-4">
-        {logs.length === 0 && !loading && (
-          <div className="text-text-dim text-center py-8">
-            <p className="text-base mb-2">No commands yet</p>
-            <p className="text-xs">Type a command below. The agent executes autonomously with full server access.</p>
-            <div className="mt-4 text-xs text-text-dim/70 space-y-1">
-              <p>Examples:</p>
-              <p className="text-text-muted">&gt; check disk space and memory usage</p>
-              <p className="text-text-muted">&gt; show pm2 status for all services</p>
-              <p className="text-text-muted">&gt; add a new portfolio item for japri.com</p>
-              <p className="text-text-muted">&gt; restart rostandy and check if chat works</p>
-            </div>
-          </div>
-        )}
-
-        {logs.map(log => {
-          const { commands, outputs } = parseShellData(log);
-          const isExpanded = activeLog === log.id;
-
-          return (
-            <div key={log.id} className="space-y-1.5">
-              {/* Command */}
-              <div className="flex items-start gap-2">
-                <span className="text-accent shrink-0">&gt;</span>
-                <span className="text-text-primary">{log.command}</span>
-                <span className="text-text-dim text-[10px] shrink-0 ml-auto">
-                  {log.model?.replace('claude-', 'c-').replace('google/', '').replace('openrouter/', 'or/')}
-                </span>
-              </div>
-
-              {/* Shell commands executed */}
-              {commands.length > 0 && (
-                <button onClick={() => setActiveLog(isExpanded ? null : log.id)} className="text-[10px] text-text-dim hover:text-text-muted flex items-center gap-1 ml-4">
-                  <span className={`transition-transform ${isExpanded ? 'rotate-90' : ''}`}>&#9654;</span>
-                  {commands.length} shell command{commands.length > 1 ? 's' : ''}
-                </button>
-              )}
-
-              {isExpanded && commands.map((cmd, i) => (
-                <div key={i} className="ml-4 space-y-0.5">
-                  <div className="text-amber-400/80 text-xs">$ {cmd}</div>
-                  {outputs[i] && (
-                    <pre className="text-text-dim text-[11px] whitespace-pre-wrap max-h-40 overflow-y-auto bg-bg/50 rounded p-2">{outputs[i]}</pre>
-                  )}
-                </div>
-              ))}
-
-              {/* Response */}
-              {log.response && (
-                <div className="ml-4 text-text-muted whitespace-pre-wrap text-[13px] leading-relaxed">{log.response}</div>
-              )}
-
-              <div className="border-b border-border/30 pt-1" />
-            </div>
-          );
-        })}
-
-        {loading && (
-          <div className="flex items-center gap-2 text-accent">
-            <div className="flex gap-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-accent animate-bounce" style={{ animationDelay: '0ms' }} />
-              <div className="w-1.5 h-1.5 rounded-full bg-accent animate-bounce" style={{ animationDelay: '150ms' }} />
-              <div className="w-1.5 h-1.5 rounded-full bg-accent animate-bounce" style={{ animationDelay: '300ms' }} />
-            </div>
-            <span className="text-xs">Executing...</span>
-          </div>
-        )}
-
-        <div ref={bottomRef} />
-      </div>
-
-      {/* Input */}
-      <div className="shrink-0 flex gap-2">
-        <div className="flex-1 flex items-center gap-2 glass-card px-4">
-          <span className="text-accent font-mono shrink-0">&gt;</span>
-          <input
-            ref={inputRef}
-            className="flex-1 bg-transparent py-3 text-sm text-text-primary placeholder:text-text-dim focus:outline-none font-mono"
-            placeholder="Type a command..."
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && execute()}
-            disabled={loading}
-            autoFocus
-          />
-        </div>
-        <button
-          onClick={execute}
-          disabled={loading || !input.trim()}
-          className="px-5 bg-accent rounded-xl text-white text-sm font-medium disabled:opacity-40 hover:bg-accent/90 active:scale-95 transition-all"
-        >
-          Run
-        </button>
-      </div>
+      <div
+        ref={termRef}
+        className="flex-1 rounded-xl overflow-hidden border border-border/50"
+        style={{ padding: '8px', background: '#0a0a0f' }}
+      />
     </div>
   );
 }
