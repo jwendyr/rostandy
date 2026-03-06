@@ -112,6 +112,24 @@ db.exec(`
     content TEXT NOT NULL,
     created_at TEXT DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS control_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    command TEXT NOT NULL,
+    response TEXT DEFAULT '',
+    shell_commands TEXT DEFAULT '[]',
+    shell_outputs TEXT DEFAULT '[]',
+    model TEXT DEFAULT '',
+    tokens_used INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS control_memory (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    key TEXT UNIQUE NOT NULL,
+    value TEXT DEFAULT '',
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
 `);
 
 // Bootstrap admin wallet
