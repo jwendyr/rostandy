@@ -60,16 +60,18 @@ wss.on('connection', (ws, req) => {
     return;
   }
 
-  const shell = pty.spawn('bash', [], {
+  const cleanEnv = { ...process.env };
+  delete cleanEnv.CLAUDECODE;
+  delete cleanEnv.CLAUDE_CODE_SESSION;
+
+  const shell = pty.spawn('su', ['-', 'ucok', '-c', 'cd /home/rostandy && claude --dangerously-skip-permissions'], {
     name: 'xterm-256color',
     cols: 120,
     rows: 30,
     cwd: '/home/rostandy',
     env: {
-      ...process.env,
+      ...cleanEnv,
       TERM: 'xterm-256color',
-      HOME: '/root',
-      PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.local/bin:/root/.cargo/bin',
     },
   });
 
